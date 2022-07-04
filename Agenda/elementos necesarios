@@ -1,371 +1,69 @@
-#spring.cloud.gcp.sql.database-name=TPMYastas
-#spring.cloud.gcp.sql.instance-connection-name=yas-dev-tpm:us-east1:yas-dev-tpm-postgres-cloudsql-instance
-spring.datasource.url=jdbc:postgresql://localhost:5432/TPM
-spring.datasource.username=bqangbirklbtdokf
-spring.datasource.password=bK8sIgXGqJP*FfXnz*UEgWtt
-#spring.cloud.gcp.project-id=yas-dev-tpm
-spring.jpa.show-sql=true
-spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect
-spring.jpa.hibernate.ddl-auto =update
-spring.jpa.hibernate.naming-strategy=org.hibernate.cfg.DefaultNamingStrategy
-comparnet.url=https://comparnet-backend.dev.cloud.gentera.com.mx/comparnet/
-comparnet.url.save=https://comparnet-backend.dev.cloud.gentera.com.mx/colaboradorExterno/
-netpay.url=https://api-int.gentera.com.mx:8443/v2/netpay/users/reset-password
-server.servlet.contextPath:/rest
-
-
---------------------------------------------------------------
-
-spring.profiles.active=dev
-
-logging.level.org.springframework.security.web=INFO
-
-endpoints.jmx.unique-names=true
-
-datasource.maxWait=-1
-datasource.testWhileIdle=true
-datasource.testOnBorrow=true
-datasource.testOnReturn=true
-datasource.maxAge=600000
-datasource.validationInterval=1000
-datasource.timeBetweenEvictionRunsMillis=3000
-datasource.maxActive=100
-datasource.minIdle=0
-datasource.initialSize=0
-datasource.removeAbandoned=false
-datasource.minEvictableIdleTimeMillis=10000
-
-
-spring.http.multipart.max-file-size=50MB
-spring.http.multipart.max-request-size=50MB
-
-
-
-
------------------------------------------------------------
-
-
 package com.yastas;
 
-import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.ResponseEntity;
+import com.google.common.collect.Lists;
+import springfox.documentation.builders.PathSelectors;
+import springfox.documentation.builders.RequestHandlerSelectors;
+import springfox.documentation.service.ApiInfo;
+import springfox.documentation.service.ApiKey;
+import springfox.documentation.service.AuthorizationScope;
+import springfox.documentation.service.Contact;
+import springfox.documentation.service.SecurityReference;
+import springfox.documentation.spi.DocumentationType;
+import springfox.documentation.spi.service.contexts.SecurityContext;
+import springfox.documentation.spring.web.plugins.Docket;
+import springfox.documentation.swagger2.annotations.EnableSwagger2;
 
-import javax.annotation.PostConstruct;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.autoconfigure.domain.EntityScan;
-import org.springframework.cloud.netflix.hystrix.EnableHystrix;
-import org.springframework.cloud.netflix.hystrix.dashboard.EnableHystrixDashboard;
-import org.springframework.cloud.openfeign.EnableFeignClients;
-import org.springframework.core.env.ConfigurableEnvironment;
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.core.io.support.ResourcePropertySource;
-import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-
-
-@EnableFeignClients
-@EnableWebSecurity
-@EnableHystrix
-@EnableHystrixDashboard
-@SpringBootApplication
-@EnableJpaRepositories("com.yastas.repository")
-@EntityScan("com.yastas.entity")
-public class TpmApplication {
-
-	/**
-	 * Ambiente de trabajo para el contexto de Spring. Permite el acceso a los archivos de propiedades.
-	 */
-	@Autowired
-	ConfigurableEnvironment env;
+@Configuration
+@EnableSwagger2
+@Import(springfox.bean.validators.configuration.BeanValidatorPluginsConfiguration.class)
+public class SwaggerConfig {
+	@Bean
+	public Docket api() {
+        return new Docket(DocumentationType.SWAGGER_2)  
+                .select()                                  
+                .apis(RequestHandlerSelectors.basePackage("com.yastas.controller"))              
+                .paths(PathSelectors.any())                          
+                .build()
+                .apiInfo(apiInfo())
+                .forCodeGeneration(true)
+                .genericModelSubstitutes(ResponseEntity.class)
+                .securityContexts(Lists.newArrayList(securityContext()))
+                .securitySchemes(Lists.newArrayList(apiKey()));     
+	}
 	
-
-	/**
-	 * Establece el prefijo de los archivos de configuracion
-	 */
-	private String filePrefix = "config";
-	
-	
-	
-
-	/**
-	 * Inicializa la instancia de la clase obteniendo las diferentes configuraciones para el perfil activo
-	 * @throws Exception Lanza una excepcion cuando se intenta acceder a los archivos de configuracion del perfil activo
-	 */
-	@PostConstruct
-	public void init() throws IOException {
-
-		for (String activeProfile : env.getActiveProfiles()) {
-			ClassPathResource classPathResource = new ClassPathResource("configuration/" +
-					filePrefix + "-" + activeProfile + ".properties");
-			if (classPathResource.exists()) {
-				env.getPropertySources().addLast(new ResourcePropertySource(classPathResource));
-			}
-		}
-
-		ClassPathResource classPathResource = new ClassPathResource("configuration/" + filePrefix + ".properties");
-		if (classPathResource.exists()) {
-			env.getPropertySources().addLast(new ResourcePropertySource(classPathResource));
-		}
-
+	private ApiInfo apiInfo() {
+	    return new ApiInfo(
+	      "Backend REST", 
+	      "HSBC", 
+	      "1.0", 
+	      "#", 
+	      new Contact("", "www", "email"), 
+	      "Derechos Reservados 2020", "#", Collections.emptyList());
 	}
 
-	/**
-	 * Metodo principal de ejecucion de la aplicacion web
-	 * @param args Establece los argumentos de ejecucion de la aplicacion web
-	 */
-	public static void main(String[] args) {
-		
-		SpringApplication.run(TpmApplication.class, args);
-	}
+	private ApiKey apiKey() {
+        return new ApiKey("JWT", "Authorization", "header");
+    }
+
+    private SecurityContext securityContext() {
+        return SecurityContext.builder()
+            .securityReferences(defaultAuth())
+            .forPaths(PathSelectors.regex("/.*"))
+            .build();
+    }
+    
+    List<SecurityReference> defaultAuth() {
+        AuthorizationScope authorizationScope
+            = new AuthorizationScope("global", "accessEverything");
+        AuthorizationScope[] authorizationScopes = new AuthorizationScope[1];
+        authorizationScopes[0] = authorizationScope;
+        return Lists.newArrayList(
+            new SecurityReference("JWT", authorizationScopes));
+    }
 }
-
-
-
-
-
-
-
-
-
-
-----------------------------------------------------------------
-
-
-
-<?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
-	<modelVersion>4.0.0</modelVersion>
-	<parent>
-		<groupId>org.springframework.boot</groupId>
-		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>2.3.2.RELEASE</version>
-		<relativePath /> <!-- lookup parent from repository -->
-	</parent>
-	<groupId>com.yastas</groupId>
-	<artifactId>tpm</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
-	<name>TPM</name>
-	<description>proyecto TPM</description>
-
-		<profiles>
-		<profile>
-			<id>dev</id>
-			<properties>
-				<activatedProperties>dev</activatedProperties>
-			</properties>
-			<activation>
-				<activeByDefault>true</activeByDefault>
-			</activation>
-		</profile>
-		<profile>
-			<id>qas</id>
-			<properties>
-				<activatedProperties>qas</activatedProperties>
-			</properties>
-		</profile>
-		<profile>
-			<id>prd</id>
-			<properties>
-				<activatedProperties>prd</activatedProperties>
-			</properties>
-		</profile>
-	</profiles>
-
-	<properties>
-		<java.version>1.8</java.version>
-		<spring-cloud-gcp.version>2.0.0</spring-cloud-gcp.version>
-		<spring-cloud.version>Hoxton.SR6</spring-cloud.version>
-	</properties>
-
-	<dependencies>
-
-
-		<dependency>
-			<groupId>org.projectlombok</groupId>
-			<artifactId>lombok</artifactId>
-			<optional>true</optional>
-		</dependency>
-
-		<!-- Configuracion del ORM de spring boot para persistencia -->
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-data-jpa</artifactId>
-		</dependency>
-
-		<!-- Conector/libreria de MYSQL para java -->
-		<dependency>
-			<groupId>org.postgresql</groupId>
-			<artifactId>postgresql</artifactId>
-			<version>42.2.20</version>
-		</dependency>
-
-
-		<dependency>
-			<groupId>org.springframework.cloud</groupId>
-			<artifactId>spring-cloud-starter-oauth2</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.cloud</groupId>
-			<artifactId>spring-cloud-cloudfoundry-web</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-security</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-actuator</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.cloud</groupId>
-			<artifactId>spring-cloud-starter-netflix-hystrix</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.cloud</groupId>
-			<artifactId>spring-cloud-starter-netflix-hystrix-dashboard</artifactId>
-		</dependency>
-
-
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-web</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>javax.xml.bind</groupId>
-			<artifactId>jaxb-api</artifactId>	
-			<version>2.3.1</version>		
-		</dependency>
-		<dependency>
-			<groupId>org.glassfish.jaxb</groupId>
-			<artifactId>jaxb-runtime</artifactId>	
-			 <version>2.3.2</version>				
-		</dependency>
-		<dependency>
-			<groupId>javax.mail</groupId>
-			<artifactId>mail</artifactId>
-			<version>1.4</version>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-tomcat</artifactId>
-			<scope>provided</scope>
-		</dependency>
-	
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-devtools</artifactId>
-			<scope>runtime</scope>
-			<optional>true</optional>
-		</dependency>
-		<dependency>
-			<groupId>io.springfox</groupId>
-			<artifactId>springfox-swagger2</artifactId>
-			<version>2.9.2</version>
-		</dependency>
-		<dependency>
-			<groupId>io.springfox</groupId>
-			<artifactId>springfox-swagger-ui</artifactId>
-			<version>2.9.2</version>
-		</dependency>
-		<dependency>
-			<groupId>io.springfox</groupId>
-			<artifactId>springfox-bean-validators</artifactId>
-			<version>2.9.2</version>
-		</dependency>
-		<dependency>
-			<groupId>com.fasterxml.jackson.core</groupId>
-			<artifactId>jackson-databind</artifactId>
-			<version>2.10.0.pr2</version>
-		</dependency>
-
-		<!--Secret Manager Library -->
-		<dependency>
-  			<groupId>org.springframework.cloud</groupId>
-  			<artifactId>spring-cloud-gcp-starter-secretmanager</artifactId>
-		</dependency>
-		<!-- Se comenta la libreria de Cloud SQL
-		<dependency>
-			<groupId>org.springframework.cloud</groupId>
-			<artifactId>spring-cloud-gcp-starter-sql-postgresql</artifactId>
-			<version>1.2.8.RELEASE</version>
-		</dependency>
-		-->
-		<!-- Pull in as a traditional dependency -->
-		<dependency>
-			<groupId>com.konghq</groupId>
-			<artifactId>unirest-java</artifactId>
-			<version>3.11.03</version>
-		</dependency>
-
-		<!-- OR as a snazzy new standalone jar with shaded dependencies -->
-		<dependency>
-			<groupId>com.konghq</groupId>
-			<artifactId>unirest-java</artifactId>
-			<version>3.11.03</version>
-			<classifier>standalone</classifier>
-		</dependency>
-		<dependency>
-			<groupId>javax.validation</groupId>
-			<artifactId>validation-api</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.cloud</groupId>
-			<artifactId>spring-cloud-starter-openfeign</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-test</artifactId>
-			<scope>test</scope>
-			<exclusions>
-				<exclusion>
-					<groupId>org.junit.vintage</groupId>
-					<artifactId>junit-vintage-engine</artifactId>
-				</exclusion>
-			</exclusions>
-		</dependency>
-	</dependencies>
-
-	<dependencyManagement>
-		<dependencies>
-			<dependency>
-				<groupId>org.springframework.cloud</groupId>
-				<artifactId>spring-cloud-dependencies</artifactId>
-				<version>${spring-cloud.version}</version>
-				<type>pom</type>
-				<scope>import</scope>
-			</dependency>
-		</dependencies>
-	</dependencyManagement>
-
-	<build>
-		<plugins>
-			<plugin>
-				<groupId>org.springframework.boot</groupId>
-				<artifactId>spring-boot-maven-plugin</artifactId>
-			</plugin>
-			<plugin>
-				<groupId>org.jacoco</groupId>
-				<artifactId>jacoco-maven-plugin</artifactId>
-				<version>0.8.5</version>
-				<executions>
-					<execution>
-						<goals>
-							<goal>prepare-agent</goal>
-						</goals>
-					</execution>
-					<execution>
-						<id>report</id>
-						<phase>prepare-package</phase>
-						<goals>
-							<goal>report</goal>
-						</goals>
-					</execution>
-				</executions>
-			</plugin>
-		</plugins>
-	</build>
-
-</project>
